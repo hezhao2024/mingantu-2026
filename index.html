@@ -8,7 +8,7 @@
         // 核心逻辑：利用当前时间戳生成随机参数，强制浏览器每次都去服务器拉取最新的 PDF，完美绕过缓存！
         window.onload = function() {
             var timestamp = new Date().getTime();
-            var pdfUrl = "schedule.pdf?v=" + timestamp;
+            var pdfUrl = "mingantu-schedule.pdf?v=" + timestamp;
             // replace() 方法不会在浏览器历史留下记录，体验更好
             window.location.replace(pdfUrl);
         };
