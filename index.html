@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会议日程加载中...</title>
+    <script>
+        // 核心逻辑：利用当前时间戳生成随机参数，强制浏览器每次都去服务器拉取最新的 PDF，完美绕过缓存！
+        window.onload = function() {
+            var timestamp = new Date().getTime();
+            var pdfUrl = "schedule.pdf?v=" + timestamp;
+            // replace() 方法不会在浏览器历史留下记录，体验更好
+            window.location.replace(pdfUrl);
+        };
+    </script>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; color: #666; }
+    </style>
+</head>
+<body>
+    <p>正在获取最新版会议日程，请稍候...</p>
+    <p>如果长时间未跳转，请 <a href="schedule.pdf">点击这里手动查看</a>。</p>
+</body>
+</html>
