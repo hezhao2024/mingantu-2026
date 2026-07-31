@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>会议日程</title>
-    <!-- 优化2：更换为国内访问更快的 Staticfile CDN -->
+    <!-- 使用国内 CDN 加速 -->
     <script src="https://cdn.staticfile.net/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         body {
@@ -20,6 +20,8 @@
             color: white;
             margin-top: 50px;
             font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 1px;
         }
         #pdf-container {
             width: 100%;
@@ -47,24 +49,45 @@
 </head>
 <body>
 
-    <div id="loading">正在加载日程，请稍候...</div>
+    <!-- 加载提示文字 -->
+    <div id="loading">准备加载日程...</div>
     <div id="pdf-container"></div>
     <a href="./mingantu-schedule.pdf" class="fallback-link" target="_blank">获取 PDF 原文件</a>
 
     <script>
         const url = './mingantu-schedule.pdf';
 
-        // 优化2：Worker 也使用国内 CDN
+        // Worker 也使用国内 CDN
         const pdfjsLib = window['pdfjs-dist/build/pdf'];
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.staticfile.net/pdf.js/2.16.105/pdf.worker.min.js';
 
         const container = document.getElementById('pdf-container');
         const loading = document.getElementById('loading');
 
-        // 优化3：使用 async/await 实现按顺序排队渲染
         async function renderPDF() {
             try {
-                const pdf = await pdfjsLib.getDocument(url).promise;
+                // 【新增】：创建加载任务而不是直接获取
+                const loadingTask = pdfjsLib.getDocument(url);
+                
+                // 【新增】：监听下载进度
+                loadingTask.onProgress = function(progress) {
+                    // 确保服务器返回了文件总大小 (total > 0)
+                    if (progress.total > 0) {
+                        const percent = Math.round((progress.loaded / progress.total) * 100);
+                        loading.innerText = `正在下载日程... ${percent}%`;
+                    } else {
+                        // 如果服务器（如 GitHub Pages）偶尔没返回总大小，则显示已下载的 KB 数
+                        const kb = Math.round(progress.loaded / 1024);
+                        loading.innerText = `正在下载日程... ${kb} KB`;
+                    }
+                };
+
+                // 等待下载完成
+                const pdf = await loadingTask.promise;
+                
+                // 下载完成后，提示正在渲染
+                loading.innerText = '下载完成，正在渲染页面...';
+
                 const numPages = pdf.numPages;
 
                 // 先把所有画布的坑位占好，防止页面跳动
@@ -97,8 +120,7 @@
                     // 等待当前页渲染完毕
                     await page.render(renderContext).promise;
 
-                    // 【核心优化】：只要第 1 页渲染完了，立刻隐藏加载提示！
-                    // 用户马上就能看到内容，剩下的 10 页在后台默默加载
+                    // 只要第 1 页渲染完了，立刻隐藏加载提示！
                     if (pageNum === 1) {
                         loading.style.display = 'none';
                     }
