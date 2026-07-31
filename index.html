@@ -2,23 +2,114 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>会议日程加载中...</title>
-    <script>
-        // 核心逻辑：利用当前时间戳生成随机参数，强制浏览器每次都去服务器拉取最新的 PDF，完美绕过缓存！
-        window.onload = function() {
-            var timestamp = new Date().getTime();
-            var pdfUrl = "mingantu-schedule.pdf?v=" + timestamp;
-            // replace() 方法不会在浏览器历史留下记录，体验更好
-            window.location.replace(pdfUrl);
-        };
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>会议日程</title>
+    <!-- 引入 PDF.js 核心库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding-top: 50px; color: #666; }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #525659; /* 经典的PDF阅读器深灰色背景 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: sans-serif;
+        }
+        #loading {
+            color: white;
+            margin-top: 50px;
+            font-size: 16px;
+        }
+        #pdf-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 10px;
+        }
+        /* 每一页的样式 */
+        canvas {
+            margin-bottom: 15px;
+            max-width: 95%; /* 手机端留出一点边距 */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            background-color: white;
+        }
+        .fallback-link {
+            margin: 20px 0 40px 0;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
-    <p>正在获取最新版会议日程，请稍候...</p>
-    <p>如果长时间未跳转，请 <a href="mingantu-schedule.pdf">点击这里手动查看</a>。</p>
+
+    <div id="loading">正在加载日程，请稍候...</div>
+    
+    <!-- PDF 将会渲染在这个容器里 -->
+    <div id="pdf-container"></div>
+
+    <!-- 备用下载链接，已修复 404 问题 (使用了 ./ ) -->
+    <a href="./mingantu-schedule.pdf" class="fallback-link" target="_blank">获取 PDF 原文件</a>
+
+    <script>
+        // 指定您的 PDF 文件路径（使用 ./ 确保相对路径正确）
+        const url = './mingantu-schedule.pdf';
+
+        // 配置 PDF.js 的 worker 路径
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        const container = document.getElementById('pdf-container');
+        const loading = document.getElementById('loading');
+
+        // 开始加载 PDF
+        pdfjsLib.getDocument(url).promise.then(function(pdf) {
+            loading.style.display = 'none'; // 隐藏加载提示
+            const numPages = pdf.numPages;
+
+            // 第一步：预先创建好 11 个画布(canvas)，保证页面顺序不会乱
+            for (let i = 1; i <= numPages; i++) {
+                let canvas = document.createElement('canvas');
+                canvas.id = 'page-' + i;
+                container.appendChild(canvas);
+            }
+
+            // 第二步：逐页渲染
+            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                pdf.getPage(pageNum).then(function(page) {
+                    // 设置缩放比例，1.5 可以在手机上保证足够的清晰度
+                    const scale = 1.5;
+                    const viewport = page.getViewport({scale: scale});
+                    
+                    const canvas = document.getElementById('page-' + pageNum);
+                    const context = canvas.getContext('2d');
+                    
+                    // 设置画布的实际分辨率大小
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    
+                    // 使用 CSS 控制在屏幕上的显示大小，使其自适应手机屏幕
+                    canvas.style.width = '100%';
+                    canvas.style.maxWidth = '800px'; // 防止在电脑上显得过大
+                    canvas.style.height = 'auto';
+
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+                    page.render(renderContext);
+                });
+            }
+        }).catch(function(error) {
+            // 如果加载失败（例如网络极差），提示用户直接点击下载
+            loading.innerText = '在线预览加载失败，请点击下方按钮查看。';
+            console.error('Error loading PDF:', error);
+        });
+    </script>
 </body>
 </html>
