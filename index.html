@@ -2,7 +2,8 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- 允许双指缩放 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>会议日程</title>
     <!-- 使用国内 CDN 加速 -->
     <script src="https://cdn.staticfile.net/pdf.js/2.16.105/pdf.min.js"></script>
@@ -16,12 +17,25 @@
             align-items: center;
             font-family: sans-serif;
         }
-        #loading {
-            color: white;
+        #loading-container {
             margin-top: 50px;
+            text-align: center;
+            color: white;
             font-size: 16px;
             font-weight: bold;
             letter-spacing: 1px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        #loading-text {
+            margin-bottom: 5px;
+        }
+        #loading-subtext {
+            font-size: 13px;
+            color: #ccc;
+            font-weight: normal;
         }
         #pdf-container {
             width: 100%;
@@ -49,8 +63,12 @@
 </head>
 <body>
 
-    <!-- 加载提示文字 -->
-    <div id="loading">准备加载日程...</div>
+    <!-- 优化的加载提示面板 -->
+    <div id="loading-container">
+        <div id="loading-text">准备加载日程...</div>
+        <div id="loading-subtext">正在连接服务器</div>
+    </div>
+    
     <div id="pdf-container"></div>
     <a href="./mingantu-schedule.pdf" class="fallback-link" target="_blank">获取 PDF 原文件</a>
 
@@ -62,31 +80,33 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.staticfile.net/pdf.js/2.16.105/pdf.worker.min.js';
 
         const container = document.getElementById('pdf-container');
-        const loading = document.getElementById('loading');
+        const loadingContainer = document.getElementById('loading-container');
+        const loadingText = document.getElementById('loading-text');
+        const loadingSubtext = document.getElementById('loading-subtext');
 
         async function renderPDF() {
             try {
-                // 【新增】：创建加载任务而不是直接获取
                 const loadingTask = pdfjsLib.getDocument(url);
                 
-                // 【新增】：监听下载进度
+                // 1. 监听下载进度
                 loadingTask.onProgress = function(progress) {
-                    // 确保服务器返回了文件总大小 (total > 0)
-                    if (progress.total > 0) {
+                    if (progress.total && progress.total > 0) {
                         const percent = Math.round((progress.loaded / progress.total) * 100);
-                        loading.innerText = `正在下载日程... ${percent}%`;
+                        loadingText.innerText = `正在下载日程... ${percent}%`;
+                        loadingSubtext.innerText = `已下载 ${(progress.loaded / 1024 / 1024).toFixed(2)} MB / ${(progress.total / 1024 / 1024).toFixed(2)} MB`;
                     } else {
-                        // 如果服务器（如 GitHub Pages）偶尔没返回总大小，则显示已下载的 KB 数
+                        // 如果服务器没返回总大小，显示已下载的 KB 数
                         const kb = Math.round(progress.loaded / 1024);
-                        loading.innerText = `正在下载日程... ${kb} KB`;
+                        loadingText.innerText = `正在下载日程...`;
+                        loadingSubtext.innerText = `已下载 ${kb} KB (努力加载中...)`;
                     }
                 };
 
                 // 等待下载完成
                 const pdf = await loadingTask.promise;
                 
-                // 下载完成后，提示正在渲染
-                loading.innerText = '下载完成，正在渲染页面...';
+                loadingText.innerText = '下载完成！';
+                loadingSubtext.innerText = '正在解析 PDF 文件结构...';
 
                 const numPages = pdf.numPages;
 
@@ -97,10 +117,18 @@
                     container.appendChild(canvas);
                 }
 
-                // 一页一页地渲染（排队进行，不卡死手机）
+                // 2. 一页一页地渲染，并显示渲染进度
                 for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                    // 更新渲染提示
+                    if (pageNum === 1) {
+                        loadingText.innerText = '正在生成画面...';
+                        loadingSubtext.innerText = `正在渲染第 1 页，请稍候...`;
+                    }
+
                     const page = await pdf.getPage(pageNum);
-                    const scale = 1.5;
+                    
+                    // 保持高清晰度
+                    const scale = 2.5; 
                     const viewport = page.getViewport({scale: scale});
                     
                     const canvas = document.getElementById('page-' + pageNum);
@@ -120,13 +148,14 @@
                     // 等待当前页渲染完毕
                     await page.render(renderContext).promise;
 
-                    // 只要第 1 页渲染完了，立刻隐藏加载提示！
+                    // 只要第 1 页渲染完了，立刻隐藏加载提示框！
                     if (pageNum === 1) {
-                        loading.style.display = 'none';
+                        loadingContainer.style.display = 'none';
                     }
                 }
             } catch (error) {
-                loading.innerText = '在线预览加载失败，请点击下方按钮查看。';
+                loadingText.innerText = '加载失败';
+                loadingSubtext.innerText = '请点击下方按钮直接查看原文件';
                 console.error('Error loading PDF:', error);
             }
         }
